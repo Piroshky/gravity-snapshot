@@ -1,4 +1,5 @@
 #include "CImg.h"
+#include <random>
 #include <string>
 #include <sys/stat.h>
 #include <iostream>
@@ -16,6 +17,7 @@ using namespace cimg_library;
 
 int width = 500;
 int height = 500;
+float gravity = 30.0;
 int triangle_height = 200;
 float dt = 0.1;
 
@@ -27,7 +29,8 @@ unsigned char *colors[] = {red, green, blue};
 
 enum Mass_Layout {
   TRIANGLE,
-  LINE
+  LINE,
+  RANDOM
 };
 
 void init_masses(Mass_Layout l) {
@@ -54,6 +57,20 @@ void init_masses(Mass_Layout l) {
     masses[2][0] = mid_width + half;
     masses[2][1] = mid_height;
     
+    break;
+  }
+  case RANDOM: {
+    std::random_device g;
+    std::uniform_int_distribution<int> rw(0,width-1);
+    std::uniform_int_distribution<int> rh(0,height-1);
+        
+    masses[0][0] = rw(g);
+    masses[1][0] = rw(g);
+    masses[2][0] = rw(g);
+    
+    masses[0][1] = rh(g);
+    masses[1][1] = rh(g);
+    masses[2][1] = rh(g);
     break;
   }
 
@@ -96,7 +113,7 @@ void Point::update() {
     float dx = m[0] - x;
     float dy = m[1] - y;
     float d2 = (dx * dx) + (dy * dy);
-    float f = 50.0 / (d2 * sqrt(d2 + 0.15));
+    float f = gravity / (d2 * sqrt(d2 + 0.15));
     xacc += dx * f;
     yacc += dy * f;
   }
@@ -167,8 +184,10 @@ CImg<unsigned char> *render_frame(Point **p, CImg<unsigned char> *img, int steps
 
 #define FLAG_IS(flag) (strcmp(flag, argv[i]) == 0)
 #define TAKES_PARAM(flag) if(i+1 >= argc){printf("Error: " flag " flag requires an argument\n");} else {++i;}
+#define TAKES_PARAMS(flag, num) if(i+num >= argc){printf("Error: " flag " flag requires an argument\n");} else {i += num;}
 
 int main(int argc, char *argv[]) {
+  Mass_Layout shape = TRIANGLE;
   int iterations = 100;
   int step = 10;
   int frames = 1;
@@ -178,48 +197,65 @@ int main(int argc, char *argv[]) {
   bool directory_set = false;
   std::string filename = "gravity-snapshot.bmp";
   for (int i = 1; i < argc; i += 1) {
-    if (FLAG_IS("-t")) {
-      TAKES_PARAM("-t")
+    if (FLAG_IS("-shapeheight")) {
+      TAKES_PARAM("-shapeheight")
       triangle_height = std::stoi(argv[i]);
+    } else if (FLAG_IS("-shape")) {
+      TAKES_PARAM("-shape")
+	if (strcmp(argv[i],"line") == 0) {
+	  shape = LINE;
+	} else if (strcmp(argv[i],"random") == 0) {
+	  shape = RANDOM;
+	}
     } else if (FLAG_IS("-i")) {
       TAKES_PARAM("-i")
       iterations = std::stoi(argv[i]);
-    } else if (FLAG_IS("-f")) {
-      TAKES_PARAM("-f")
-      frames = std::stoi(argv[i]);
-    } else if (FLAG_IS("-s")) {
-      TAKES_PARAM("-s")
+    } else if (FLAG_IS("-frames")) {
+      TAKES_PARAM("-frames")
+      if (strcmp(argv[i], "inf") == 0) {
+	frames = 0;
+      } else {
+	frames = std::stoi(argv[i]);
+      }
+    } else if (FLAG_IS("-step")) {
+      TAKES_PARAM("-step")
       step = std::stoi(argv[i]);
-    } else if (FLAG_IS("-w")) {
-      TAKES_PARAM("-w")
-      width = std::stoi(argv[i]);
-    } else if (FLAG_IS("-h")) {
-      TAKES_PARAM("-h")
-      height = std::stoi(argv[i]);
+    } else if (FLAG_IS("-size")) {
+      TAKES_PARAMS("-size", 2)
+      width = std::stoi(argv[i-1]);
+      height = std::stoi(argv[i]);      
     } else if (FLAG_IS("-dt")) {
       TAKES_PARAM("-dt")
       dt = std::stof(argv[i]);
+    } else if (FLAG_IS("-gravity")) {
+      TAKES_PARAM("-gravity")
+      gravity = std::stof(argv[i]);
     } else if (FLAG_IS("-ns")) {
       save = false;
     } else if(FLAG_IS("-g")) {
       timestamp_dir = true;
-    } else if (FLAG_IS("-o")) {
-      TAKES_PARAM("-o")
+    } else if (FLAG_IS("-save-in")) {
+      TAKES_PARAM("-save-in")
       directory_set = true;
       directory = argv[i];
     } else if (FLAG_IS("-help") || FLAG_IS("--help")) {
       printf("Gravity Snapshot options:\n"
-	     "   -f [int]        the number of frames to render\n"
-	     "   -i [int]        the initial number of iterations per frame\n"
-	     "   -s [int]        the step size, how much the number of iterations increases per frame\n"
-	     "   -w,-h [int]     the width/height of the image\n"
-	     "   -ns             don't save the frames\n"
-	     "   -o [directory]  save directory\n"
-	     "   -g              generate directory from timestamp\n"
-	     "   -b [filename]   basefile name\n"
-	     "   -t [int]        the height of the the equilateral triangle layout for the attractor masses\n"
-	     "   -dt [float]     the time step between frames\n"
-	     "   -help, --help      show this help info\n"
+	     "   -size [int w] [int h]     the width and height of the frames\n"
+	     "   -frames [int]        the number of frames to render, default is 1\n"
+	     "                        if followed by \"inf\" the program will contnue indefinitely\n"
+	     "   -shape [type]        can be triangle, line, or random\n"
+	     "   -shapeheight [int]   the height of the the shape\n"
+	     "   -dt [float]          the time step between frames\n"
+	     "   -gravity [float]     the force of gravity\n"
+	     "   -i [int]             the initial number of iterations per frame, default is 100\n"
+	     "   -step [int]          by how much the number of iterations increases per frame, default is 10\n"
+	     "\n   -ns                  don't save the frames\n"
+	     "   -name [filename]     basefile name\n"
+	     "   -save-in [directory]       save directory\n"
+	     "   -g                   generate directory from timestamp\n"
+	     "                        when the -o flag is also present the generated directory\n"
+	     "                        will be a child of the given directory\n"             
+	     "\n   -help, --help        show this help info\n"
 	     );
       exit(1);
     }
@@ -271,7 +307,7 @@ int main(int argc, char *argv[]) {
 	   "         Output will not be saved!\n\033[39m");
   }
 
-  init_masses(LINE);
+  init_masses(shape);
   CImg<unsigned char> visu(width,height,1,3,0);
   CImgDisplay main_disp(visu,"Gravity Snapshot");
   
@@ -299,6 +335,22 @@ int main(int argc, char *argv[]) {
   }
 
   render_frame(p, &visu, iterations);
+
+  if (frames == 0) {
+    int i = 0;
+    while (true) {
+      if (main_disp.is_closed()) {
+	printf("Window Closed\n");
+	exit(1);
+      }
+      render_frame(p, &visu, step);
+      visu.display(main_disp);
+      if (save) {
+	visu.save(savename, i, num_digits);
+      }
+      ++i;
+    }
+  }
   
   for (int i = 0; i < frames; i += 1) {
     if (main_disp.is_closed()) {
