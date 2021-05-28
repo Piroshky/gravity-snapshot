@@ -4,4 +4,5 @@ This program is based off this [video](https://www.youtube.com/watch?v=C5Jkgvw-Z
 
 There are three masses layed out to form an equilateral triangle. Each mass represents one of red, green, and blue. To color the pixel we set the color channel associated with the clossest mass to 255, the other two channels are set to proportionately to their distance from the point. This is totally arbitrary, I chose it because it creates the most interesting images from the other things I tried.
 
-You can create then animate the effect of increasing the number of iterations, see `--help` for more options. To turn the rendered frames into a video with ImageMagick you can do: `convert -quality 100 *.bmp video.webm`
+You can create then animate the effect of increasing the number of iterations, see `--help` for more options.
+To turn the rendered frames into a video with ImageMagick you can do: `convert -quality 100 *.bmp video.webm`

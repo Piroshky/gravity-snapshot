@@ -25,17 +25,39 @@ int nmasses = sizeof(masses)/sizeof(masses[0]);
 unsigned char red[] = { 167, 38, 8 }, green[] = { 122, 179, 131 }, blue[] = {118, 120, 219}, color[] = {0,0,0};
 unsigned char *colors[] = {red, green, blue};
 
-void init_masses() {
+enum Mass_Layout {
+  TRIANGLE,
+  LINE
+};
+
+void init_masses(Mass_Layout l) {
   float mid_height = height / 2.0;
   float mid_width = width / 2.0;
   float third = triangle_height / 3.0;
   float half = triangle_height / 2.0;
-  masses[0][0] = mid_width;
-  masses[0][1] = mid_height - (2.0 * third);
-  masses[1][0] = mid_width - half;
-  masses[1][1] = mid_height + third;
-  masses[2][0] = mid_width + half;
-  masses[2][1] = mid_height + third;
+
+  switch(l) {
+  case TRIANGLE: {
+    masses[0][0] = mid_width;
+    masses[0][1] = mid_height - (2.0 * third);
+    masses[1][0] = mid_width - half;
+    masses[1][1] = mid_height + third;
+    masses[2][0] = mid_width + half;
+    masses[2][1] = mid_height + third;    
+    break;
+  }
+  case LINE: {
+    masses[0][0] = mid_width;
+    masses[0][1] = mid_height;
+    masses[1][0] = mid_width - half;
+    masses[1][1] = mid_height;    
+    masses[2][0] = mid_width + half;
+    masses[2][1] = mid_height;
+    
+    break;
+  }
+
+  }
 }
 
 struct Point {
@@ -46,6 +68,8 @@ struct Point {
   float xa = 0;
   float ya = 0;  
 
+  Point() {}
+  
   Point(float xpos, float ypos) {
     x = xpos;
     y = ypos;
@@ -84,7 +108,8 @@ void calc_closest(Point *p) {
   int c = 0;
   float dist = INFINITY;
   for (int m = 0; m < nmasses; ++m) {
-    float d = hypotf(p->x - masses[m][0], p->y - masses[m][1]);
+    // float d = hypotf(p->x - masses[m][0], p->y - masses[m][1]);
+    float d = abs(p->x - masses[m][0]) + abs(p->y - masses[m][1]);
     if (d < dist) {
       dist = d;
       c = m;
@@ -103,12 +128,14 @@ void calc_weighted_closest(Point *p) {
 
   for (int m = 0; m < nmasses; ++m) {
     float d = hypotf(p->x - masses[m][0], p->y - masses[m][1]);
+    // printf("%f\n",d);
     if (d < dist) {
       c = m;
       dist = d;
     } else {
-      total += rgb[m];
+      total += d;
     }
+    // total += d;
     rgb[m] = d;        
   }
   for (int i = 0; i < 3; ++i) {
@@ -120,16 +147,17 @@ void calc_weighted_closest(Point *p) {
   }
 }
 
-CImg<unsigned char> *render_frame(CImg<unsigned char> *img, int iters) {
+CImg<unsigned char> *render_frame(Point **p, CImg<unsigned char> *img, int steps) {
   img->fill(0);
-  Point p = Point(0,0);
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      p.reset(x,y);
-      for (int i = 0; i < iters; ++i) {
-	p.update();
+      for (int i = 0; i < steps; ++i) {
+	p[y][x].update();
       }
-      calc_weighted_closest(&p);      
+      calc_weighted_closest(&(p[y][x]));
+      // if (x == 0 && y == 0) {
+      // 	printf("color: %d %d %d\n", color[0], color[1], color[2]);
+      // }
       img->draw_point(x,y,0,color);
     }
   }
@@ -195,17 +223,16 @@ int main(int argc, char *argv[]) {
 	     );
       exit(1);
     }
-
     else {
       printf("Unrecognized argument %s. Exiting.\n", argv[i]);
       exit(1);
     }
   }
-
+  
+  // Setup save directory string
   if (directory[directory.size()-1] != '/') {
     directory += "/";
   }
-
   if (directory_set) {
     struct stat dirstat;
     if (stat(directory.c_str(), &dirstat) != 0) {
@@ -215,9 +242,8 @@ int main(int argc, char *argv[]) {
       printf("Error: `%s` is not a directory\n", directory.c_str());
       exit(1);
     }
-  }
-  
-  if (timestamp_dir) {
+  }  
+  if (timestamp_dir && save) {
     auto t = std::time(nullptr);
     auto tm = *std::localtime(&t);
 
@@ -225,36 +251,64 @@ int main(int argc, char *argv[]) {
     oss << std::put_time(&tm, "%Y-%m-%d %H-%M-%S/");
     directory += oss.str();
     mkdir(directory.c_str(), 0777);
-  }
-  
-
+  }  
   std::string fullname = directory + filename;
   const std::string::size_type size = fullname.size();
-  char *savename = new char[size + 1];   //we need extra char for NUL
-  memcpy(savename, fullname.c_str(), size + 1);
-
-
+  char *savename = new char[size + 1];
+  memcpy(savename, fullname.c_str(), size + 1);  
   
-  init_masses();
-  CImg<unsigned char> visu(width,height,1,3,0);
-  CImgDisplay main_disp(visu,"Gravity Snapshot");
-
-  printf("Triangle height: %d\nFrames: %d\nBase iterations per frame: %d\nIteration increase step per frame: %d\ndt: %f\n", triangle_height, frames, iterations, step, dt);
+  printf("Triangle height: %d\n"
+	 "Frames: %d\n"
+	 "Base iterations per frame: %d\n"
+	 "Iteration increase step per frame: %d\n"
+	 "dt: %f\n",
+	 triangle_height, frames, iterations, step, dt);
   if (!save) {
     printf("Not Saving\n");
   }
   if (!save && directory_set) {
-    printf("WARNING: save directory is set, but so is the no save flag.\n"
-	   "         Output will not be saved!\n");
+    printf("\033[31mWARNING: save directory is set, but so is the no-save flag.\n"
+	   "         Output will not be saved!\n\033[39m");
   }
 
+  init_masses(LINE);
+  CImg<unsigned char> visu(width,height,1,3,0);
+  CImgDisplay main_disp(visu,"Gravity Snapshot");
+  
+  auto s = std::to_string((width * height * sizeof(Point)));
+  int n = s.length() - 3;
+  while (n > 0) {
+    s.insert(n, ",");
+    n -= 3;
+  }
+  printf("Total size required: %s bytes\n", s.c_str());
+  
+  int num_digits = (int)(std::floor(std::log10(frames))) + 1;
 
+  const size_t w = width;  // with the power of c++, everything that should be built in  
+  const size_t h = height; // instead gets to be another few lines or a library
+  Point **p = new Point*[h];
+  for(size_t i = 0; i < h; ++i) {
+    p[i] = new Point[w];
+  }
+
+  for (int i = 0; i < height; ++i) {
+    for (int j = 0; j < width; ++j) {
+      p[i][j].reset(j, i);
+    }
+  }
+
+  render_frame(p, &visu, iterations);
   
   for (int i = 0; i < frames; i += 1) {
-    render_frame(&visu, iterations + (step * i));
+    if (main_disp.is_closed()) {
+      printf("Window Closed\n");
+      exit(1);
+    }
+    render_frame(p, &visu, step);
     visu.display(main_disp);
     if (save) {
-      visu.save(savename, i, 4);
+      visu.save(savename, i, num_digits);
     }
   }
   printf("Frame Rendering Complete\n");
