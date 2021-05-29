@@ -7,8 +7,7 @@
 #include <ctime>
 #include <sstream>
 
-bool IsPathExist(const std::string &s)
-{
+bool IsPathExist(const std::string &s) {
   struct stat buffer;
   return (stat (s.c_str(), &buffer) == 0);
 }
@@ -20,9 +19,19 @@ int height = 500;
 float gravity = 30.0;
 int triangle_height = 200;
 float dt = 0.1;
+int num_rand = 3;
 
-float masses[3][2] = {{200.0, 150.0}, {400.0, 200.0}, {300,400}};
-int nmasses = sizeof(masses)/sizeof(masses[0]);
+struct Mass {
+  float x = 0;
+  float y = 0;
+  Mass(float ix, float iy) {
+    x = ix;
+    y = iy;
+  }
+};
+
+std::vector<Mass> masses;
+int nmasses = 3;
 
 unsigned char red[] = { 167, 38, 8 }, green[] = { 122, 179, 131 }, blue[] = {118, 120, 219}, color[] = {0,0,0};
 unsigned char *colors[] = {red, green, blue};
@@ -30,7 +39,8 @@ unsigned char *colors[] = {red, green, blue};
 enum Mass_Layout {
   TRIANGLE,
   LINE,
-  RANDOM
+  RANDOM,
+  NRANDOM
 };
 
 void init_masses(Mass_Layout l) {
@@ -41,39 +51,50 @@ void init_masses(Mass_Layout l) {
 
   switch(l) {
   case TRIANGLE: {
-    masses[0][0] = mid_width;
-    masses[0][1] = mid_height - (2.0 * third);
-    masses[1][0] = mid_width - half;
-    masses[1][1] = mid_height + third;
-    masses[2][0] = mid_width + half;
-    masses[2][1] = mid_height + third;    
+    masses.push_back(Mass(mid_width, mid_height - (2.0 * third)));
+    masses.push_back(Mass(mid_width - half, mid_height + third));
+    masses.push_back(Mass(mid_width + half, mid_height + third));
+    // masses[0][0] = mid_width;
+    // masses[0][1] = mid_height - (2.0 * third);
+    // masses[1][0] = mid_width - half;
+    // masses[1][1] = mid_height + third;
+    // masses[2][0] = mid_width + half;
+    // masses[2][1] = mid_height + third;    
     break;
   }
   case LINE: {
-    masses[0][0] = mid_width;
-    masses[0][1] = mid_height;
-    masses[1][0] = mid_width - half;
-    masses[1][1] = mid_height;    
-    masses[2][0] = mid_width + half;
-    masses[2][1] = mid_height;
+    masses.push_back(Mass(mid_width, mid_height));
+    masses.push_back(Mass(mid_width - half, mid_height));
+    masses.push_back(Mass(mid_width + half, mid_height));
+    // masses[0][0] = mid_width;
+    // masses[0][1] = mid_height;
+    // masses[1][0] = mid_width - half;
+    // masses[1][1] = mid_height;    
+    // masses[2][0] = mid_width + half;
+    // masses[2][1] = mid_height;
     
     break;
   }
-  case RANDOM: {
+  case RANDOM:
+  case NRANDOM: {
+    nmasses = num_rand;
     std::random_device g;
     std::uniform_int_distribution<int> rw(0,width-1);
     std::uniform_int_distribution<int> rh(0,height-1);
-        
-    masses[0][0] = rw(g);
-    masses[1][0] = rw(g);
-    masses[2][0] = rw(g);
-    
-    masses[0][1] = rh(g);
-    masses[1][1] = rh(g);
-    masses[2][1] = rh(g);
-    break;
-  }
 
+    for (int i = 0; i < num_rand; ++i) {
+      masses.push_back(Mass(rw(g), rh(g)));
+    }
+    // masses[0][0] = rw(g);
+    // masses[1][0] = rw(g);
+    // masses[2][0] = rw(g);
+    
+    // masses[0][1] = rh(g);
+    // masses[1][1] = rh(g);
+    // masses[2][1] = rh(g);
+
+    break;
+  }   
   }
 }
 
@@ -110,10 +131,10 @@ void Point::update() {
   float xacc = 0;
   float yacc = 0;
   for (auto m : masses) {
-    float dx = m[0] - x;
-    float dy = m[1] - y;
-    float d2 = (dx * dx) + (dy * dy);
-    float f = gravity / (d2 + 5);
+    float dx = m.x - x;
+    float dy = m.y - y;
+    float d = (dx * dx) + (dy * dy);
+    float f = gravity / (d + .1);
     xacc += dx * f;
     yacc += dy * f;
   }
@@ -126,9 +147,13 @@ void interactive_mode() {
   CImgDisplay disp(visu,"Gravity Snapshot");
   color[0] = 255;   color[1] = 255;   color[2] = 255;
   visu.fill(0);
-  for (int i = 0; i < nmasses; ++i) {
-    visu.draw_circle(masses[i][0], masses[i][1], 15, colors[i]);
+
+  int i = 0;
+  for (auto m : masses) {
+    visu.draw_circle(m.x, m.y, 15, colors[i % 3]);
+    ++i;
   }
+  
   visu.display(disp);
 
   Point p = Point();
@@ -154,9 +179,12 @@ void interactive_mode() {
       mouse_pressed = false;
     }
 
-    for (int i = 0; i < nmasses; ++i) {
-      visu.draw_circle(masses[i][0], masses[i][1], 15, colors[i]);
+    i = 0;
+    for (auto m : masses) {
+      visu.draw_circle(m.x, m.y, 15, colors[i % 3]);
+      ++i;
     }
+
     p.update();
     visu.draw_circle(p.x, p.y, 5, color);
     visu.display(disp);
@@ -166,13 +194,16 @@ void interactive_mode() {
 void calc_closest(Point *p) {
   int c = 0;
   float dist = INFINITY;
-  for (int m = 0; m < nmasses; ++m) {
+  // for (int m = 0; m < nmasses; ++m) {
+  int i = 0;
+  for (auto m : masses) {
     // float d = hypotf(p->x - masses[m][0], p->y - masses[m][1]);
-    float d = abs(p->x - masses[m][0]) + abs(p->y - masses[m][1]);
+    float d = abs(p->x - m.x) + abs(p->y - m.y);
     if (d < dist) {
       dist = d;
-      c = m;
+      c = i % 3;
     }
+    ++i;
   }
   color[0] = colors[c][0];
   color[1] = colors[c][1];
@@ -185,17 +216,19 @@ void calc_weighted_closest(Point *p) {
   float total = 0;
   float dist = INFINITY;
 
-  for (int m = 0; m < nmasses; ++m) {
-    float d = hypotf(p->x - masses[m][0], p->y - masses[m][1]);
+  // for (int m = 0; m < nmasses; ++m) {
+  for (int i = 0; i < nmasses; ++i) {
+    auto m = masses[i];
+    float d = hypotf(p->x - m.x, p->y - m.y);
     // printf("%f\n",d);
     if (d < dist) {
-      c = m;
+      c = i % 3;
       dist = d;
     } else {
       total += d;
     }
     // total += d;
-    rgb[m] = d;        
+    rgb[i % 3] = d;
   }
   for (int i = 0; i < 3; ++i) {
     if (i == c) {
@@ -248,6 +281,10 @@ int main(int argc, char *argv[]) {
 	  shape = LINE;
 	} else if (strcmp(argv[i],"random") == 0) {
 	  shape = RANDOM;
+	} else if (strcmp(argv[i], "nrandom") == 0) {
+	  TAKES_PARAM("nrandom")
+	  shape = NRANDOM;
+	  num_rand = std::stoi(argv[i]);
 	}
     } else if (FLAG_IS("-i")) {
       TAKES_PARAM("-i")
