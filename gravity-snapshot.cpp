@@ -113,12 +113,54 @@ void Point::update() {
     float dx = m[0] - x;
     float dy = m[1] - y;
     float d2 = (dx * dx) + (dy * dy);
-    float f = gravity / (d2 * sqrt(d2 + 0.15));
+    float f = gravity / (d2 + 5);
     xacc += dx * f;
     yacc += dy * f;
   }
   xa = xacc;
   ya = yacc;
+}
+
+void interactive_mode() {  
+  CImg<unsigned char> visu(width,height,1,3,0);
+  CImgDisplay disp(visu,"Gravity Snapshot");
+  color[0] = 255;   color[1] = 255;   color[2] = 255;
+  visu.fill(0);
+  for (int i = 0; i < nmasses; ++i) {
+    visu.draw_circle(masses[i][0], masses[i][1], 15, colors[i]);
+  }
+  visu.display(disp);
+
+  Point p = Point();
+  bool mouse_pressed = false;
+  bool begin = false;
+  while (!begin) {
+    if (disp.button()&1) {
+      begin = true;
+      p.reset(disp.mouse_x(), disp.mouse_y());
+    }
+  }
+  
+  while (true) {
+    visu.fill(0);
+    if (disp.is_closed()) {
+      printf("Window Closed\n");
+      exit(1);
+    }    
+    if(!mouse_pressed && disp.button()&1) {
+      mouse_pressed = true;
+      p.reset(disp.mouse_x(), disp.mouse_y());
+    } else if (mouse_pressed && !disp.button()&1) {
+      mouse_pressed = false;
+    }
+
+    for (int i = 0; i < nmasses; ++i) {
+      visu.draw_circle(masses[i][0], masses[i][1], 15, colors[i]);
+    }
+    p.update();
+    visu.draw_circle(p.x, p.y, 5, color);
+    visu.display(disp);
+  }
 }
 
 void calc_closest(Point *p) {
@@ -165,7 +207,6 @@ void calc_weighted_closest(Point *p) {
 }
 
 CImg<unsigned char> *render_frame(Point **p, CImg<unsigned char> *img, int steps) {
-  img->fill(0);
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       for (int i = 0; i < steps; ++i) {
@@ -196,6 +237,7 @@ int main(int argc, char *argv[]) {
   std::string directory = "./";
   bool directory_set = false;
   std::string filename = "gravity-snapshot.bmp";
+  bool interactive = false;
   for (int i = 1; i < argc; i += 1) {
     if (FLAG_IS("-shapeheight")) {
       TAKES_PARAM("-shapeheight")
@@ -238,7 +280,11 @@ int main(int argc, char *argv[]) {
       TAKES_PARAM("-save-in")
       directory_set = true;
       directory = argv[i];
-    } else if (FLAG_IS("-help") || FLAG_IS("--help")) {
+    } else if (FLAG_IS("-interactive")) {
+      interactive = true;
+    }
+
+    else if (FLAG_IS("-help") || FLAG_IS("--help")) {
       printf("Gravity Snapshot options:\n"
 	     "   -size [int w] [int h]     the width and height of the frames\n"
 	     "   -frames [int]        the number of frames to render, default is 1\n"
@@ -263,6 +309,12 @@ int main(int argc, char *argv[]) {
       printf("Unrecognized argument %s. Exiting.\n", argv[i]);
       exit(1);
     }
+  }
+  
+  init_masses(shape);
+  if (interactive) {
+    interactive_mode();
+    return 0;
   }
   
   // Setup save directory string
@@ -310,6 +362,7 @@ int main(int argc, char *argv[]) {
   init_masses(shape);
   CImg<unsigned char> visu(width,height,1,3,0);
   CImgDisplay main_disp(visu,"Gravity Snapshot");
+  visu.fill(0);
   
   auto s = std::to_string((width * height * sizeof(Point)));
   int n = s.length() - 3;
