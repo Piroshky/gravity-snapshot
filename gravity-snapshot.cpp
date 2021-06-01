@@ -262,8 +262,8 @@ CImg<unsigned char> *render_frame(Point **p, CImg<unsigned char> *img, int steps
 
 int main(int argc, char *argv[]) {
   Mass_Layout shape = TRIANGLE;
-  int iterations = 100;
-  int step = 10;
+  int iterations = 0;
+  int step = 1;
   int frames = 1;
   bool save = true;
   bool timestamp_dir = false;
@@ -271,9 +271,10 @@ int main(int argc, char *argv[]) {
   bool directory_set = false;
   std::string filename = "gravity-snapshot.bmp";
   bool interactive = false;
+  bool verbose = false;
   for (int i = 1; i < argc; i += 1) {
-    if (FLAG_IS("-shapeheight")) {
-      TAKES_PARAM("-shapeheight")
+    if (FLAG_IS("-shape-size")) {
+      TAKES_PARAM("-shape-size")
       triangle_height = std::stoi(argv[i]);
     } else if (FLAG_IS("-shape")) {
       TAKES_PARAM("-shape")
@@ -319,6 +320,8 @@ int main(int argc, char *argv[]) {
       directory = argv[i];
     } else if (FLAG_IS("-interactive")) {
       interactive = true;
+    } else if (FLAG_IS("-v")) {
+      verbose = true;
     }
 
     else if (FLAG_IS("-help") || FLAG_IS("--help")) {
@@ -327,12 +330,12 @@ int main(int argc, char *argv[]) {
 	     "   -frames [int]        the number of frames to render, default is 1\n"
 	     "                        if followed by \"inf\" the program will contnue indefinitely\n"
 	     "   -shape [type]        can be triangle, line, or random\n"
-	     "   -shapeheight [int]   the height of the the shape\n"
+	     "   -shape-size [int]     height for triangle, width for line\n"
 	     "   -dt [float]          the time step between frames\n"
 	     "   -gravity [float]     the force of gravity\n"
 	     "   -i [int]             the initial number of iterations per frame, default is 100\n"
 	     "   -step [int]          by how much the number of iterations increases per frame, default is 10\n"
-	     "\n   -ns                  don't save the frames\n"
+	     "\n   -ns                No save. Don't save the frames\n"
 	     "   -name [filename]     basefile name\n"
 	     "   -save-in [directory]       save directory\n"
 	     "   -g                   generate directory from timestamp\n"
@@ -381,16 +384,18 @@ int main(int argc, char *argv[]) {
   const std::string::size_type size = fullname.size();
   char *savename = new char[size + 1];
   memcpy(savename, fullname.c_str(), size + 1);  
-  
-  printf("Triangle height: %d\n"
-	 "Frames: %d\n"
-	 "Base iterations per frame: %d\n"
-	 "Iteration increase step per frame: %d\n"
-	 "dt: %f\n",
-	 triangle_height, frames, iterations, step, dt);
+
+  if (verbose) {
+    printf("Shape size: %d\n"
+	   "Frames: %d\n"
+	   "Base iterations per frame: %d\n"
+	   "Steps per frame: %d\n"
+	   "dt: %f\n",
+	   triangle_height, frames, iterations, step, dt);
+  }
   if (!save) {
     printf("Not Saving\n");
-  }
+  }  
   if (!save && directory_set) {
     printf("\033[31mWARNING: save directory is set, but so is the no-save flag.\n"
 	   "         Output will not be saved!\n\033[39m");
@@ -407,7 +412,7 @@ int main(int argc, char *argv[]) {
     s.insert(n, ",");
     n -= 3;
   }
-  printf("Total size required: %s bytes\n", s.c_str());
+  // printf("Total size required: %s bytes\n", s.c_str());
   
   int num_digits = (int)(std::floor(std::log10(frames))) + 1;
 
