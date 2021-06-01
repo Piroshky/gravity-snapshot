@@ -123,6 +123,29 @@ struct Point {
   }
 };
 
+void print_help() {
+  printf("Gravity Snapshot options:\n"
+	 "   -size [int w] [int h]     the width and height of the frames\n"
+	 "   -frames [int]        the number of frames to render, default is 1\n"
+	 "                        if followed by \"inf\" the program will contnue indefinitely\n"
+	 "   -shape [type]        can be triangle, line, or random\n"
+	 "   -shape-size [int]     height for triangle, width for line\n"
+	 "   -dt [float]          the time step between frames\n"
+	 "   -gravity [float]     the force of gravity\n"
+	 "   -i [int]             the initial number of iterations per frame, default is 100\n"
+	 "   -step [int]          by how much the number of iterations increases per frame, default is 10\n"
+	 "\n   -ns                No save. Don't save the frames\n"
+	 "   -name [filename]     basefile name\n"
+	 "   -save-in [directory]       save directory\n"
+	 "   -g                   generate directory from timestamp\n"
+	 "                        when the -o flag is also present the generated directory\n"
+	 "                        will be a child of the given directory\n\n"
+	 "   -interactive         show the gravity simulation\n"
+	 "\n   -help, --help        show this help info\n"
+    );
+  exit(1);
+}
+
 void Point::update() {
   x += xv * dt;
   y += yv * dt;
@@ -269,7 +292,7 @@ int main(int argc, char *argv[]) {
   bool timestamp_dir = false;
   std::string directory = "./";
   bool directory_set = false;
-  std::string filename = "gravity-snapshot.bmp";
+  std::string filename = "gravity-snapshot.png";
   bool interactive = false;
   bool verbose = false;
   for (int i = 1; i < argc; i += 1) {
@@ -318,6 +341,9 @@ int main(int argc, char *argv[]) {
       TAKES_PARAM("-save-in")
       directory_set = true;
       directory = argv[i];
+    } else if (FLAG_IS("-name")) {
+      TAKES_PARAM("-name")
+      filename = argv[i];
     } else if (FLAG_IS("-interactive")) {
       interactive = true;
     } else if (FLAG_IS("-v")) {
@@ -325,29 +351,11 @@ int main(int argc, char *argv[]) {
     }
 
     else if (FLAG_IS("-help") || FLAG_IS("--help")) {
-      printf("Gravity Snapshot options:\n"
-	     "   -size [int w] [int h]     the width and height of the frames\n"
-	     "   -frames [int]        the number of frames to render, default is 1\n"
-	     "                        if followed by \"inf\" the program will contnue indefinitely\n"
-	     "   -shape [type]        can be triangle, line, or random\n"
-	     "   -shape-size [int]     height for triangle, width for line\n"
-	     "   -dt [float]          the time step between frames\n"
-	     "   -gravity [float]     the force of gravity\n"
-	     "   -i [int]             the initial number of iterations per frame, default is 100\n"
-	     "   -step [int]          by how much the number of iterations increases per frame, default is 10\n"
-	     "\n   -ns                No save. Don't save the frames\n"
-	     "   -name [filename]     basefile name\n"
-	     "   -save-in [directory]       save directory\n"
-	     "   -g                   generate directory from timestamp\n"
-	     "                        when the -o flag is also present the generated directory\n"
-	     "                        will be a child of the given directory\n"             
-	     "\n   -help, --help        show this help info\n"
-	     );
-      exit(1);
+      print_help();
     }
     else {
-      printf("Unrecognized argument %s. Exiting.\n", argv[i]);
-      exit(1);
+      printf("Unrecognized argument %s\n\n", argv[i]);
+      print_help();
     }
   }
   
@@ -441,7 +449,7 @@ int main(int argc, char *argv[]) {
       render_frame(p, &visu, step);
       visu.display(main_disp);
       if (save) {
-	visu.save(savename, i, num_digits);
+	visu.save(savename, i);
       }
       ++i;
     }
