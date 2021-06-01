@@ -384,7 +384,7 @@ int main(int argc, char *argv[]) {
     auto tm = *std::localtime(&t);
 
     std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%d %H-%M-%S/");
+    oss << std::put_time(&tm, "%Y-%m-%d_%H:%M:%S/");
     directory += oss.str();
     mkdir(directory.c_str(), 0777);
   }  
@@ -406,14 +406,14 @@ int main(int argc, char *argv[]) {
   }  
   if (!save && directory_set) {
     printf("\033[31mWARNING: save directory is set, but so is the no-save flag.\n"
-	   "         Output will not be saved!\n\033[39m");
+	   "         Output will not be saved!\n\033[39m\n");
   }
 
   init_masses(shape);
   CImg<unsigned char> visu(width,height,1,3,0);
   CImgDisplay main_disp(visu,"Gravity Snapshot");
   visu.fill(0);
-  
+
   auto s = std::to_string((width * height * sizeof(Point)));
   int n = s.length() - 3;
   while (n > 0) {
@@ -436,7 +436,6 @@ int main(int argc, char *argv[]) {
       p[i][j].reset(j, i);
     }
   }
-
   render_frame(p, &visu, iterations);
 
   if (frames == 0) {
